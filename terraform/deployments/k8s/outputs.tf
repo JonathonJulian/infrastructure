@@ -29,7 +29,7 @@ output "ansible_inventory_path" {
 output "proxmox_template_info" {
   description = "Information about the Proxmox template used"
   value = {
-    template_id   = module.k8s_cluster.template_vm_id
+    template_id = module.k8s_cluster.template_vm_id
     # Use the actual template name from the module output
     template_name = "ubuntu-cloud-22.04"
   }

@@ -14,7 +14,7 @@ module "k8s_cluster" {
   username         = var.username
   template_name    = var.template_name
 
-  generate_k8s_inventory     = true
+  generate_k8s_inventory = true
 
   common_config = {
     username        = var.username
