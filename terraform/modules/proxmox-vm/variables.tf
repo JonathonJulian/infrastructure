@@ -49,7 +49,15 @@ variable "common_config" {
     ssh_public_keys = list(string)
   })
 
-  # No default provided as these are environment-specific settings
+  # Provide sensible defaults, but expect these to be overridden in deployments
+  default = {
+    datastore       = "local-lvm"
+    subnet_mask     = "24"
+    default_gateway = "192.168.1.1"
+    dns_servers     = ["1.1.1.1", "8.8.8.8"]
+    username        = "ubuntu"
+    ssh_public_keys = []  # No default keys for security reasons
+  }
 }
 
 ## VM Definitions ##
@@ -58,9 +66,9 @@ variable "vm_configs" {
   description = "Map of VM configurations"
   type = map(object({
     name            = string
-    cpu             = number
-    memory          = number
-    disk_size_gb    = number
+    cpu             = optional(number)
+    memory          = optional(number)
+    disk_size_gb    = optional(number)
     datastore       = optional(string)
     ip_address      = optional(string)
     subnet_mask     = optional(string)
@@ -71,6 +79,26 @@ variable "vm_configs" {
   }))
 
   # No default provided as VM configs are deployment-specific
+}
+
+## VM Defaults ##
+
+variable "default_cpu" {
+  description = "Default CPU cores for VMs if not specified"
+  type        = number
+  default     = 2
+}
+
+variable "default_memory" {
+  description = "Default memory in GB for VMs if not specified"
+  type        = number
+  default     = 4
+}
+
+variable "default_disk_size" {
+  description = "Default disk size in GB for VMs if not specified"
+  type        = number
+  default     = 50
 }
 
 ## Feature Flags ##
