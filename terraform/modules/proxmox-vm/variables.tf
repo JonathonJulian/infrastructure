@@ -56,7 +56,7 @@ variable "common_config" {
     default_gateway = "192.168.1.1"
     dns_servers     = ["1.1.1.1", "8.8.8.8"]
     username        = "ubuntu"
-    ssh_public_keys = []  # No default keys for security reasons
+    ssh_public_keys = [] # No default keys for security reasons
   }
 }
 

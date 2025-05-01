@@ -7,28 +7,23 @@ terraform {
 module "k8s_cluster" {
   source = "../../modules/proxmox-vm"
 
-  # Connection settings
-  proxmox_endpoint = var.proxmox_endpoint
-  proxmox_token    = var.proxmox_token
-  node_name        = var.node_name
-  resource_pool    = var.resource_pool
-  template_name    = var.template_name
+  # Only the API token is truly required, others use module defaults
+  proxmox_token = var.proxmox_token
 
   # Enable inventory generation
   generate_k8s_inventory = true
 
-  # Common configuration for all VMs
+  # Override only the specific common settings that differ from module defaults
   common_config = {
-    username        = var.username
     datastore       = var.datastore
-    subnet_mask     = var.subnet_mask
+    subnet_mask     = "24"
     default_gateway = var.default_gateway
-    dns_servers     = var.dns_servers
+    dns_servers     = ["8.8.8.8", "8.8.4.4"]
+    username        = "ubuntu"
     ssh_public_keys = var.public_keys
   }
 
-  # VM configurations - all VMs get defaults from the module for cpu/memory/disk
-  # if not explicitly specified
+  # VM configurations
   vm_configs = {
     # Control Plane Nodes - using high-resource configuration
     "control-0" = {
