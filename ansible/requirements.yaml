@@ -1,0 +1,6 @@
+---
+roles:
+  - name: ansible-role-rke2
+    src: https://github.com/lablabs/ansible-role-rke2.git
+    scm: git
+    version: main

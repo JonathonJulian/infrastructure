@@ -1,0 +1,84 @@
+- name: Wait for all VMs to be responsive
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Wait for SSH to be available
+      wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        timeout: 300
+        state: started
+      delegate_to: localhost
+      register: ssh_result
+      until: ssh_result is success
+      retries: 30
+      delay: 10
+      ignore_errors: yes
+
+    - name: Wait for system to be fully booted
+      wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        timeout: 60
+        state: started
+      delegate_to: localhost
+      register: boot_result
+      until: boot_result is success
+      retries: 5
+      delay: 5
+      when: ssh_result is success
+
+
+- name: Deploy RKE2 Cluster
+  hosts: all
+  become: true
+  vars:
+    # Download kubeconfig locally
+    rke2_download_kubeconf: true
+    rke2_download_kubeconf_path: "{{ playbook_dir }}/kubeconfig"
+
+    # Use latest stable version of Kubernetes
+    rke2_version: v1.32.3+rke2r1
+    # API server will be the first master node
+    rke2_api_ip: "{{ hostvars[groups['masters'][0]]['ansible_host'] }}"
+
+    # Disable HA mode since we have single control plane
+    rke2_ha_mode: true
+
+    rke2_ha_mode_keepalived: true
+
+    # Use default CNI (canal)
+    rke2_cni: [canal]
+
+    # Enable debugging if needed
+    rke2_debug: true
+
+    # Wait for all pods to be ready after service restart
+    rke2_wait_for_all_pods_to_be_ready: true
+
+
+  roles:
+    - role: ansible-role-rke2
+
+- name: Configure local kubectl context
+  hosts: localhost
+  become: false
+  tasks:
+    - name: Create ~/.kube directory
+      file:
+        path: "~/.kube"
+        state: directory
+        mode: '0755'
+
+    - name: Copy kubeconfig to ~/.kube/config
+      copy:
+        src: "{{ playbook_dir }}/kubeconfig/rke2.yaml"
+        dest: "~/.kube/config"
+        mode: '0600'
+        backup: yes
+
+    - name: Update server address in kubeconfig
+      replace:
+        path: "~/.kube/config"
+        regexp: "server: \"https://127.0.0.1:6443\""
+        replace: "server: \"https://{{ hostvars[groups['masters'][0]]['ansible_host'] }}:6443\""
