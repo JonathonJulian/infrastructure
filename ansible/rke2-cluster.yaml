@@ -42,7 +42,7 @@
     # API server will be the first master node
     rke2_api_ip: "{{ hostvars[groups['masters'][0]]['ansible_host'] }}"
 
-    # Disable HA mode since we have single control plane
+    # Enable HA mode for multiple control plane nodes
     rke2_ha_mode: true
 
     rke2_ha_mode_keepalived: true

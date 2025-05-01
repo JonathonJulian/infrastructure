@@ -32,21 +32,21 @@ module "k8s_cluster" {
       cpu          = 2
       memory       = 4
       disk_size_gb = 50
-      ip_address   = "192.168.1.101"
+      ip_address   = var.control_plane_ips[0]
     }
     "control-1" = {
       name         = "control-1"
       cpu          = 2
       memory       = 4
       disk_size_gb = 50
-      ip_address   = "192.168.1.102"
+      ip_address   = var.control_plane_ips[1]
     }
     "control-2" = {
       name         = "control-2"
       cpu          = 2
       memory       = 4
       disk_size_gb = 50
-      ip_address   = "192.168.1.103"
+      ip_address   = var.control_plane_ips[2]
     }
 
     # Worker Nodes
@@ -55,33 +55,35 @@ module "k8s_cluster" {
       cpu          = 16
       memory       = 32
       disk_size_gb = 200
-      ip_address   = "192.168.1.220"
+      ip_address   = var.worker_ips[0]
     }
     "worker-1" = {
       name         = "worker-1"
       cpu          = 16
       memory       = 32
       disk_size_gb = 200
-      ip_address   = "192.168.1.221"
+      ip_address   = var.worker_ips[1]
     }
     "worker-2" = {
       name         = "worker-2"
       cpu          = 16
       memory       = 32
       disk_size_gb = 200
-      ip_address   = "192.168.1.222"
+      ip_address   = var.worker_ips[2]
     },
     "worker-3" = {
       name         = "worker-3"
       cpu          = 16
       memory       = 32
       disk_size_gb = 200
+      ip_address   = var.worker_ips[3]
     },
     "worker-4" = {
       name         = "worker-4"
       cpu          = 16
       memory       = 32
       disk_size_gb = 200
+      ip_address   = var.worker_ips[4]
     }
   }
 }
