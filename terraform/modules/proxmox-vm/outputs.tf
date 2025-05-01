@@ -6,7 +6,7 @@ output "template_vm_id" {
 
 # Next available VM ID
 output "next_vm_id" {
-  value       = 500  # Fixed high number to avoid conflicts
+  value       = 500 # Fixed high number to avoid conflicts
   description = "The next available VM ID for new VMs"
 }
 
@@ -14,15 +14,15 @@ output "next_vm_id" {
 output "control_plane_nodes" {
   value = {
     for key, vm in proxmox_virtual_environment_vm.vm : key => {
-      name        = vm.name
-      id          = vm.vm_id
-      ip          = lookup(var.vm_configs[key], "ip_address", null) != null ? var.vm_configs[key].ip_address : "DHCP"
-      cpu         = var.vm_configs[key].cpu
-      memory_gb   = var.vm_configs[key].memory
-      disk_gb     = var.vm_configs[key].disk_size_gb
-      datastore   = var.vm_configs[key].datastore
-      network     = lookup(var.vm_configs[key], "ip_address", null) != null ? "static" : "dhcp"
-      ssh_keys    = concat(
+      name      = vm.name
+      id        = vm.vm_id
+      ip        = lookup(var.vm_configs[key], "ip_address", null) != null ? var.vm_configs[key].ip_address : "DHCP"
+      cpu       = var.vm_configs[key].cpu
+      memory_gb = var.vm_configs[key].memory
+      disk_gb   = var.vm_configs[key].disk_size_gb
+      datastore = var.vm_configs[key].datastore
+      network   = lookup(var.vm_configs[key], "ip_address", null) != null ? "static" : "dhcp"
+      ssh_keys = concat(
         coalesce(var.vm_configs[key].ssh_public_keys, []),
         var.common_config.ssh_public_keys
       )
@@ -36,15 +36,15 @@ output "control_plane_nodes" {
 output "worker_nodes" {
   value = {
     for key, vm in proxmox_virtual_environment_vm.vm : key => {
-      name        = vm.name
-      id          = vm.vm_id
-      ip          = lookup(var.vm_configs[key], "ip_address", null) != null ? var.vm_configs[key].ip_address : "DHCP"
-      cpu         = var.vm_configs[key].cpu
-      memory_gb   = var.vm_configs[key].memory
-      disk_gb     = var.vm_configs[key].disk_size_gb
-      datastore   = var.vm_configs[key].datastore
-      network     = lookup(var.vm_configs[key], "ip_address", null) != null ? "static" : "dhcp"
-      ssh_keys    = concat(
+      name      = vm.name
+      id        = vm.vm_id
+      ip        = lookup(var.vm_configs[key], "ip_address", null) != null ? var.vm_configs[key].ip_address : "DHCP"
+      cpu       = var.vm_configs[key].cpu
+      memory_gb = var.vm_configs[key].memory
+      disk_gb   = var.vm_configs[key].disk_size_gb
+      datastore = var.vm_configs[key].datastore
+      network   = lookup(var.vm_configs[key], "ip_address", null) != null ? "static" : "dhcp"
+      ssh_keys = concat(
         coalesce(var.vm_configs[key].ssh_public_keys, []),
         var.common_config.ssh_public_keys
       )
@@ -58,15 +58,15 @@ output "worker_nodes" {
 output "all_vms" {
   value = {
     for key, vm in proxmox_virtual_environment_vm.vm : key => {
-      name        = vm.name
-      id          = vm.vm_id
-      ip          = lookup(var.vm_configs[key], "ip_address", null) != null ? var.vm_configs[key].ip_address : "DHCP"
-      cpu         = var.vm_configs[key].cpu
-      memory_gb   = var.vm_configs[key].memory
-      disk_gb     = var.vm_configs[key].disk_size_gb
-      datastore   = var.vm_configs[key].datastore
-      network     = lookup(var.vm_configs[key], "ip_address", null) != null ? "static" : "dhcp"
-      ssh_keys    = concat(
+      name      = vm.name
+      id        = vm.vm_id
+      ip        = lookup(var.vm_configs[key], "ip_address", null) != null ? var.vm_configs[key].ip_address : "DHCP"
+      cpu       = var.vm_configs[key].cpu
+      memory_gb = var.vm_configs[key].memory
+      disk_gb   = var.vm_configs[key].disk_size_gb
+      datastore = var.vm_configs[key].datastore
+      network   = lookup(var.vm_configs[key], "ip_address", null) != null ? "static" : "dhcp"
+      ssh_keys = concat(
         coalesce(var.vm_configs[key].ssh_public_keys, []),
         var.common_config.ssh_public_keys
       )
@@ -112,7 +112,7 @@ output "network_summary" {
       if lookup(config, "ip_address", null) == null
     }
     subnet_mask = var.common_config.subnet_mask
-    gateway = var.common_config.default_gateway
+    gateway     = var.common_config.default_gateway
     dns_servers = var.common_config.dns_servers
   }
   description = "Summary of network configuration"

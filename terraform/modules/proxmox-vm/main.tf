@@ -1,9 +1,9 @@
 
 
 provider "proxmox" {
-  endpoint = var.proxmox_endpoint
+  endpoint  = var.proxmox_endpoint
   api_token = var.proxmox_token
-  insecure = true
+  insecure  = true
 }
 
 # Clone from existing template for each VM
@@ -25,7 +25,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   clone {
-    vm_id = local.template_vm.vm_id
+    vm_id   = local.template_vm.vm_id
     retries = 3
   }
 
@@ -38,11 +38,11 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   memory {
-    dedicated = each.value.memory * 1024  # Convert GB to MB
+    dedicated = each.value.memory * 1024 # Convert GB to MB
   }
 
   disk {
-    interface = "scsi0"
+    interface    = "scsi0"
     datastore_id = coalesce(each.value.datastore, var.common_config.datastore)
     size         = each.value.disk_size_gb
     file_format  = "raw"

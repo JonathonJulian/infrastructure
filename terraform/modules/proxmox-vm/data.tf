@@ -42,26 +42,26 @@ locals {
     [for vm in data.proxmox_virtual_environment_vms.templates.vms : vm if vm.name == var.template_name && vm.vm_id == 100][0],
     {
       vm_id = 100
-      name = var.template_name
+      name  = var.template_name
     }
   )
 
   # VM Type Definitions
   vm_types = {
     control = {
-      prefix = "control-"
+      prefix  = "control-"
       base_id = 200
     }
     worker = {
-      prefix = "worker-"
+      prefix  = "worker-"
       base_id = 300
     }
     runner = {
-      prefix = "runner-"
+      prefix  = "runner-"
       base_id = 400
     }
     other = {
-      prefix = ""
+      prefix  = ""
       base_id = 500
     }
   }
