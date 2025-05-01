@@ -56,7 +56,6 @@
     # Wait for all pods to be ready after service restart
     rke2_wait_for_all_pods_to_be_ready: true
 
-
   roles:
     - role: ansible-role-rke2
 
