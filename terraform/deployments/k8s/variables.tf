@@ -1,3 +1,5 @@
+## Required variables ##
+
 variable "proxmox_token" {
   description = "Proxmox API token"
   type        = string
@@ -8,52 +10,31 @@ variable "proxmox_token" {
   }
 }
 
-variable "public_keys" {
-  description = "SSH public keys to add to VMs"
-  type        = list(string)
-  default = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO3sOFB9wGEcOgNO5BfxF35Sh+EAOxWTZjx//DK4XHAx jon@blocknative.com"
-  ]
-}
+## Optional variables (override module defaults) ##
 
 variable "proxmox_endpoint" {
-  description = "Proxmox API endpoint"
+  description = "Proxmox API endpoint (overrides module default)"
   type        = string
-  default     = "https://192.168.1.100:8006"
+  default     = "https://192.168.1.100:8006" # Keep if different from module default
   validation {
     condition     = length(var.proxmox_endpoint) > 0
     error_message = "The proxmox_endpoint value cannot be empty."
   }
 }
 
-variable "resource_pool" {
-  description = "Proxmox resource pool"
-  type        = string
-  default     = "k8s"
-}
 variable "node_name" {
-  description = "Proxmox node name"
+  description = "Proxmox node name (overrides module default)"
   type        = string
-  default     = "pve"
+  default     = "pve" # Keep if different from module default
 }
 
-variable "template_name" {
-  description = "The name of the template VM to clone from"
+variable "resource_pool" {
+  description = "Proxmox resource pool (overrides module default)"
   type        = string
-  default     = "ubuntu-cloud-22.04"
+  default     = "k8s" # Keep if different from module default
 }
 
-variable "username" {
-  description = "Default username for SSH access"
-  type        = string
-  default     = "ubuntu"
-}
-
-variable "datastore" {
-  description = "Proxmox datastore"
-  type        = string
-  default     = "ssd"
-}
+## Deployment-specific configuration ##
 
 variable "subnet_mask" {
   description = "Subnet mask"
@@ -82,6 +63,32 @@ variable "control_plane_ips" {
 variable "worker_ips" {
   description = "IP addresses for worker nodes with static IPs"
   type        = list(string)
-  default     = ["192.168.1.220", "192.168.1.221", "192.168.1.222", "192.168.1.223", "192.168.1.224"]
+  default     = ["192.168.1.220", "192.168.1.221", "192.168.1.222", "192.168.1.223"]
+}
+
+variable "datastore" {
+  description = "Proxmox datastore"
+  type        = string
+  default     = "ssd"
+}
+
+variable "username" {
+  description = "Default username for SSH access (overrides module default)"
+  type        = string
+  default     = "ubuntu" # Keep if different from module default
+}
+
+variable "template_name" {
+  description = "The name of the template VM to clone from (overrides module default)"
+  type        = string
+  default     = "ubuntu-cloud-22.04" # Keep if different from module default
+}
+
+variable "public_keys" {
+  description = "SSH public keys to add to VMs"
+  type        = list(string)
+  default = [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO3sOFB9wGEcOgNO5BfxF35Sh+EAOxWTZjx//DK4XHAx jon@blocknative.com"
+  ]
 }
 

@@ -1,6 +1,9 @@
+## API Connection ##
+
 variable "proxmox_endpoint" {
   description = "Proxmox API endpoint"
   type        = string
+  default     = "https://192.168.1.100:8006"
 }
 
 variable "proxmox_token" {
@@ -12,6 +15,7 @@ variable "proxmox_token" {
 variable "node_name" {
   description = "Proxmox node name"
   type        = string
+  default     = "pve"
 }
 
 variable "template_name" {
@@ -29,7 +33,10 @@ variable "username" {
 variable "resource_pool" {
   description = "Proxmox resource pool name"
   type        = string
+  default     = "k8s"
 }
+
+## Common Configuration ##
 
 variable "common_config" {
   description = "Common configuration for all VMs"
@@ -41,7 +48,11 @@ variable "common_config" {
     username        = string
     ssh_public_keys = list(string)
   })
+
+  # No default provided as these are environment-specific settings
 }
+
+## VM Definitions ##
 
 variable "vm_configs" {
   description = "Map of VM configurations"
@@ -58,7 +69,11 @@ variable "vm_configs" {
     username        = optional(string)
     ssh_public_keys = optional(list(string))
   }))
+
+  # No default provided as VM configs are deployment-specific
 }
+
+## Feature Flags ##
 
 variable "generate_k8s_inventory" {
   description = "Whether to generate Kubernetes inventory file"
