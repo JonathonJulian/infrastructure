@@ -5,7 +5,7 @@
 # Variables
 #############################
 SHELL := /bin/bash
-.PHONY: deploy-k8s destroy-k8s setup-ansible install-charts update-charts clean
+.PHONY: help deploy-k8s destroy-k8s setup-ansible install-charts update-charts clean
 
 # Configuration
 PROXMOX_TOKEN ?= $(PROXMOX_TOKEN_ENV)
@@ -26,10 +26,29 @@ ERROR := @echo "\n${RED}⛔ "
 WARN := @echo "\n${YELLOW}⚠️ "
 
 #############################
+# Help
+#############################
+
+help: ## Show this help message
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@awk '/^[a-zA-Z0-9_-]+:.*?## .*$$/ { \
+		printf "  ${BLUE}%-20s${NC} %s\n", $$1, $$2 \
+	}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "Examples:"
+	@echo "  make deploy-k8s     # Deploy a new Kubernetes cluster"
+	@echo "  make install-charts  # Install Proxmox CSI charts only"
+	@echo "  make clean          # Clean up temporary files"
+
+.DEFAULT_GOAL := help
+
+#############################
 # Setup Commands
 #############################
 
-setup-ansible:
+setup-ansible: ## Install Ansible dependencies
 	$(INFO)Installing Ansible dependencies...${NC}
 	@ansible-galaxy install -r $(ANSIBLE_DIR)/requirements.yaml
 	@pip install -r $(ANSIBLE_DIR)/requirements.txt
@@ -39,7 +58,7 @@ setup-ansible:
 # Deployment Commands
 #############################
 
-deploy-k8s: setup-ansible
+deploy-k8s: setup-ansible ## Deploy Kubernetes cluster with Proxmox CSI integration
 	$(INFO)Starting full infrastructure deployment...${NC}
 	@cd $(TERRAFORM_DIR) && terraform init && \
 		terraform apply -var="proxmox_token=$(PROXMOX_TOKEN)" -auto-approve || \
@@ -59,7 +78,7 @@ deploy-k8s: setup-ansible
 	$(SUCCESS)Kubernetes cluster deployment complete${NC}
 	@kubectl get nodes
 
-destroy-k8s:
+destroy-k8s: ## Destroy the entire Kubernetes infrastructure
 	$(INFO)Destroying infrastructure...${NC}
 	@cd $(TERRAFORM_DIR) && terraform init && \
 		terraform destroy -var="proxmox_token=$(PROXMOX_TOKEN)" -auto-approve || \
@@ -70,14 +89,14 @@ destroy-k8s:
 # Chart Management
 #############################
 
-install-charts:
+install-charts: ## Install Proxmox CSI Helm charts
 	$(INFO)Installing Helm charts...${NC}
 	@helm upgrade -i proxmox-controllers ./$(CHARTS_DIR)/proxmox/ \
 		-n $(KUBE_NAMESPACE) -f ./$(CHARTS_DIR)/proxmox/values.yaml || \
 		{ $(ERROR)Chart installation failed${NC}; exit 1; }
 	$(SUCCESS)Charts installed successfully${NC}
 
-update-charts:
+update-charts: ## Update Proxmox CSI Helm charts to latest version
 	$(INFO)Updating Helm charts...${NC}
 	@helm repo update
 	@helm upgrade proxmox-controllers ./$(CHARTS_DIR)/proxmox/ \
@@ -89,7 +108,7 @@ update-charts:
 # Cleanup
 #############################
 
-clean:
+clean: ## Clean up temporary files and build artifacts
 	$(INFO)Cleaning up temporary files...${NC}
 	@find . -name "*.retry" -delete
 	@find . -name ".terraform.lock.hcl" -delete
