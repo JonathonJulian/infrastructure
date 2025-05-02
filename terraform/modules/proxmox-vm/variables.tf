@@ -101,16 +101,40 @@ variable "default_disk_size" {
   default     = 50
 }
 
-## Feature Flags ##
+## Inventory Configuration ##
 
-variable "generate_k8s_inventory" {
-  description = "Whether to generate Kubernetes inventory file"
+variable "inventory_enabled" {
+  description = "Whether to generate an inventory file"
   type        = bool
   default     = false
 }
 
-variable "generate_runners_inventory" {
-  description = "Whether to generate Runners inventory file"
-  type        = bool
-  default     = false
+variable "inventory_template_path" {
+  description = "Path to the inventory template file"
+  type        = string
+  default     = null
+}
+
+variable "inventory_dir" {
+  description = "Directory where inventory files are stored (default: ansible/inventory)"
+  type        = string
+  default     = "../../ansible/inventory"
+}
+
+variable "inventory_filename" {
+  description = "Filename for the inventory (when not using full output path)"
+  type        = string
+  default     = null
+}
+
+variable "inventory_output_path" {
+  description = "Full path where the inventory file should be written (overrides inventory_dir and inventory_filename)"
+  type        = string
+  default     = null
+}
+
+variable "inventory_extra_vars" {
+  description = "Additional variables to pass to the inventory template"
+  type        = map(any)
+  default     = {}
 }

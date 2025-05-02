@@ -4,13 +4,19 @@ terraform {
   }
 }
 
+# Generate secure RKE2 token
+resource "random_string" "rke2_token" {
+  length  = 64
+  special = false
+  upper   = true
+  lower   = true
+  numeric = true
+}
+
 module "k8s_cluster" {
   source = "../../modules/proxmox-vm"
   # Only the API token is truly required, others use module defaults
   proxmox_token = var.proxmox_token
-
-  # Enable inventory generation
-  generate_k8s_inventory = true
 
   # Override only the specific common settings that differ from module defaults
   common_config = {
@@ -76,5 +82,16 @@ module "k8s_cluster" {
       disk_size_gb = 200
       ip_address   = var.worker_ips[3]
     }
+  }
+
+  # Inventory generation
+  inventory_enabled      = true
+  inventory_template_path = "${path.module}/ansible_inventory_rke2.tmpl"
+  inventory_filename     = "rke2.ini"
+  inventory_extra_vars   = {
+    ansible_user = "ubuntu"
+    private_key  = "~/.ssh/id_ed25519"
+    rke2_token   = random_string.rke2_token.result
+    node_name    = "pve"  # Proxmox node name for provider_id
   }
 }
