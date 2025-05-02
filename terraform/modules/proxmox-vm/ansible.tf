@@ -14,11 +14,15 @@ resource "local_file" "ansible_inventory" {
   filename = "${path.root}/../../../ansible/inventory/rke2.ini"
   content = templatefile("${path.module}/templates/rke2.tpl", {
     masters = {
-      for key, config in var.vm_configs : key => config
+      for key, config in var.vm_configs : key => merge(config, {
+        "vm_id" = proxmox_virtual_environment_vm.vm[key].id
+      })
       if startswith(key, "control-")
     }
     workers = {
-      for key, config in var.vm_configs : key => config
+      for key, config in var.vm_configs : key => merge(config, {
+        "vm_id" = proxmox_virtual_environment_vm.vm[key].id
+      })
       if startswith(key, "worker-")
     }
     rke2_token = random_string.rke2_token[0].result

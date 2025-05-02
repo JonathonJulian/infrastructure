@@ -1,0 +1,110 @@
+ccm:
+  enabledControllers: ['*']
+  config:
+    features:
+      provider: "proxmox"
+    clusters:
+      - url: "https://192.168.1.100:8006/api2/json"
+        insecure: true
+        token_id: kubernetes@pve!ccm
+        token_secret: "${PROXMOX_CCM_TOKEN_SECRET}"
+        region: "LAB"
+
+
+  # Use daemonset mode for RKE2 as recommended
+  useDaemonSet: true
+
+  # Set nodeSelector for control-plane nodes
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: "true"
+
+  # Allow scheduling on control-plane nodes
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/master
+      effect: NoSchedule
+    - key: node.cloudprovider.kubernetes.io/uninitialized
+      effect: NoSchedule
+      value: "true"
+
+csi:
+  config:
+    clusters:
+      - url: "https://192.168.1.100:8006/api2/json"
+        insecure: true  # For self-signed certificates
+        token_id: kubernetes-csi@pve!csi
+        token_secret: "${PROXMOX_CSI_TOKEN_SECRET}"
+        region: "LAB"
+        nodes:
+          - name: "pve"
+            endpoint: "192.168.1.100"
+            region: "LAB"
+            zone: "pve"
+
+  # Storage class definitions using actual API storage pool names
+  storageClass:
+    - name: "proxmox-nvme"
+      storage: "nvme"  # NVMe ZFS pool
+      reclaimPolicy: Delete
+      fstype: ext4
+      allowVolumeExpansion: true
+      volumeBindingMode: WaitForFirstConsumer
+      cache: directsync
+      ssd: true
+
+    - name: "proxmox-ssd"
+      storage: "ssd"  # SSD ZFS pool
+      reclaimPolicy: Delete
+      fstype: ext4
+      allowVolumeExpansion: true
+      volumeBindingMode: WaitForFirstConsumer
+      cache: directsync
+      ssd: true
+
+    - name: "proxmox-local"
+      storage: "local"  # Local directory storage
+      reclaimPolicy: Delete
+      fstype: ext4
+      allowVolumeExpansion: true
+      volumeBindingMode: WaitForFirstConsumer
+      cache: writeback
+
+    - name: "proxmox-local-lvm"
+      storage: "local-lvm"  # Local LVM thin pool
+      reclaimPolicy: Delete
+      fstype: ext4
+      allowVolumeExpansion: true
+      volumeBindingMode: WaitForFirstConsumer
+      cache: writeback
+
+  # DNS resolution for Proxmox hosts
+  hostAliases:
+    - ip: "192.168.1.100"
+      hostnames:
+        - "pve"
+        - "proxmox"
+        - "proxmox.local"
+
+  # Controller pod configuration
+  controller:
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
+
+  tolerations:
+    - key: node-role.kubernetes.io/master
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/control-plane
+      effect: NoSchedule
+    - key: node.cloudprovider.kubernetes.io/uninitialized
+      effect: NoSchedule
+      value: "true"
+
+  # Node plugin scheduling configuration
+  nodeSelector: {}  # Allow scheduling on any node
+
+  # Metrics and monitoring
+  metrics:
+    enabled: true
+    port: 8080

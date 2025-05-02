@@ -1,3 +1,4 @@
+---
 - name: Wait for all VMs to be responsive
   hosts: all
   gather_facts: no
@@ -28,7 +29,6 @@
       delay: 5
       when: ssh_result is success
 
-
 - name: Deploy RKE2 Cluster
   hosts: all
   become: true
@@ -44,8 +44,17 @@
 
     # Enable HA mode for multiple control plane nodes
     rke2_ha_mode: true
-
     rke2_ha_mode_keepalived: true
+
+    # External cloud provider configuration
+    rke2_disable_cloud_controller: false
+    rke2_cloud_provider_name: "external"
+
+    # Kubelet arguments including provider ID
+    rke2_kubelet_arg:
+      - "cloud-provider=external"
+      - "provider-id={{ hostvars[inventory_hostname]['provider_id'] }}"
+      - "node-labels=topology.kubernetes.io/region=LAB,topology.kubernetes.io/zone=pve"
 
     # Use default CNI (canal)
     rke2_cni: [canal]
@@ -56,8 +65,35 @@
     # Wait for all pods to be ready after service restart
     rke2_wait_for_all_pods_to_be_ready: true
 
+    # Set the network interface (uncomment and modify these lines)
+    rke2_interface: "{{ ansible_default_ipv4.interface }}"
+    rke2_bind_address: "{{ ansible_default_ipv4.address }}"
+
   roles:
     - role: ansible-role-rke2
+
+- name: Configure CoreDNS
+  hosts: "{{ groups['masters'][0] }}"
+  become: true
+  tasks:
+    - name: Wait for CoreDNS deployment to be available
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml -n kube-system wait deployment/rke2-coredns-rke2-coredns --for=condition=available --timeout=300s
+      register: wait_result
+      until: wait_result.rc == 0
+      retries: 30
+      delay: 10
+
+    - name: Check if cloud provider toleration exists
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml -n kube-system get deployment rke2-coredns-rke2-coredns -o json | grep -q 'node.cloudprovider.kubernetes.io/uninitialized'
+      register: toleration_check
+      ignore_errors: true
+
+    - name: Add cloud provider toleration to CoreDNS if not present
+      shell: |
+        /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml -n kube-system patch deployment rke2-coredns-rke2-coredns --type=json -p='[{"op": "add", "path": "/spec/template/spec/tolerations/-", "value": {"key": "node.cloudprovider.kubernetes.io/uninitialized", "value": "true", "effect": "NoSchedule"}}]'
+      when: toleration_check.rc != 0
 
 - name: Configure local kubectl context
   hosts: localhost

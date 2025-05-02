@@ -1,0 +1,19 @@
+apiVersion: v2
+name: proxmox-controllers
+description: A Helm chart for Proxmox controllers (CCM and CSI)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+icon: https://proxmox.com/pve/images/proxmox-logo.svg
+
+# Dependencies
+dependencies:
+  - name: proxmox-cloud-controller-manager
+    version: "0.2.13"
+    alias: ccm
+    enabled: false
+    repository: oci://ghcr.io/sergelogvinov/charts
+  - name: proxmox-csi-plugin
+    version: "0.3.5"
+    alias: csi
+    repository: oci://ghcr.io/sergelogvinov/charts

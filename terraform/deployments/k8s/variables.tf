@@ -44,6 +44,6 @@ variable "control_plane_ips" {
 variable "worker_ips" {
   description = "IP addresses for worker nodes with static IPs"
   type        = list(string)
-  default     = ["192.168.1.220", "192.168.1.221", "192.168.1.222", "192.168.1.223"]
+  default     = ["192.168.1.220", "192.168.1.221", "192.168.1.222", "192.168.1.223", "192.168.1.224", "192.168.1.225", "192.168.1.226", "192.168.1.227", "192.168.1.228", "192.168.1.229"]
 }
 

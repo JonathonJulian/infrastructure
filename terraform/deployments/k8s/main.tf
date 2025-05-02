@@ -6,7 +6,6 @@ terraform {
 
 module "k8s_cluster" {
   source = "../../modules/proxmox-vm"
-
   # Only the API token is truly required, others use module defaults
   proxmox_token = var.proxmox_token
 
@@ -18,7 +17,7 @@ module "k8s_cluster" {
     datastore       = var.datastore
     subnet_mask     = "24"
     default_gateway = var.default_gateway
-    dns_servers     = ["8.8.8.8", "8.8.4.4"]
+    dns_servers     = ["8.8.8.8"]
     username        = "ubuntu"
     ssh_public_keys = var.public_keys
   }

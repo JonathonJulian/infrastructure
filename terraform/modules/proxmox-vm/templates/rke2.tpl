@@ -1,14 +1,14 @@
 [masters]
 %{ for name, config in masters ~}
 %{ if lookup(config, "ip_address", null) != null ~}
-${name} ansible_host=${config.ip_address} ansible_user=${coalesce(config.username, "ubuntu")}
+${name} ansible_host=${config.ip_address} ansible_user=${coalesce(config.username, "ubuntu")} provider_id="proxmox://pve/${config.vm_id}"
 %{ endif ~}
 %{ endfor ~}
 
 [workers]
 %{ for name, config in workers ~}
 %{ if lookup(config, "ip_address", null) != null ~}
-${name} ansible_host=${config.ip_address} ansible_user=${coalesce(config.username, "ubuntu")}
+${name} ansible_host=${config.ip_address} ansible_user=${coalesce(config.username, "ubuntu")} provider_id="proxmox://pve/${config.vm_id}"
 %{ endif ~}
 %{ endfor ~}
 
