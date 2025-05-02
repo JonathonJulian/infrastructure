@@ -1,33 +1,3 @@
-ccm:
-  enabledControllers: ['*']
-  config:
-    features:
-      provider: "proxmox"
-    clusters:
-      - url: "https://192.168.1.100:8006/api2/json"
-        insecure: true
-        token_id: kubernetes@pve!ccm
-        token_secret: "${PROXMOX_CCM_TOKEN_SECRET}"
-        region: "LAB"
-
-
-  # Use daemonset mode for RKE2 as recommended
-  useDaemonSet: true
-
-  # Set nodeSelector for control-plane nodes
-  nodeSelector:
-    node-role.kubernetes.io/control-plane: "true"
-
-  # Allow scheduling on control-plane nodes
-  tolerations:
-    - key: node-role.kubernetes.io/control-plane
-      effect: NoSchedule
-    - key: node-role.kubernetes.io/master
-      effect: NoSchedule
-    - key: node.cloudprovider.kubernetes.io/uninitialized
-      effect: NoSchedule
-      value: "true"
-
 csi:
   config:
     clusters:
