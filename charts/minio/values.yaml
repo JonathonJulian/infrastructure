@@ -1,0 +1,76 @@
+---
+# MinIO configuration
+minio:
+  # Access credentials
+  rootUser: "minioadmin"
+  rootPassword: "minioadmin"
+
+  # Use a compatible image version
+  image:
+    repository: minio/minio
+    tag: RELEASE.2023-04-20T17-56-55Z
+    pullPolicy: IfNotPresent
+
+  # Enable the MinIO console
+  console:
+    enabled: true
+
+  mode: standalone
+  replicas: 2
+
+  # Resources limits
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 8000m
+    limits:
+      memory: 8Gi
+      cpu: 20000m
+
+  # Create default buckets
+  defaultBuckets: "loki-chunks,terraform-state,arbitrum-snapshots,ethereum-snapshots"
+
+  # Define buckets with policies
+  buckets:
+    - name: loki-chunks
+      policy: none
+      purge: false
+    - name: terraform-state
+      policy: none
+      purge: false
+    - name: arbitrum-snapshots
+      policy: download
+      purge: false
+    - name: ethereum-snapshots
+      policy: download
+      purge: false
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 9000
+
+  # Persistence configuration (for storing data)
+  persistence:
+    enabled: true
+    size: 3000Gi
+    storageClass: proxmox-ssd
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    path: /minio
+    pathType: ImplementationSpecific
+    hosts:
+      - minio.local
+    consolePath: /minio-console
+    consolePathType: ImplementationSpecific
+
+# Remove node selector since CSI storage works on any node
+nodeSelector: null
+
+# Disable any other affinity settings that might be causing conflicts
+affinity: {}
+
+# Make sure tolerations are set to allow deployment
+tolerations: []
