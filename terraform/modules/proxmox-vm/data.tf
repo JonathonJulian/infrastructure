@@ -8,34 +8,6 @@ data "proxmox_virtual_environment_vms" "all_vms" {
   node_name = var.node_name
 }
 
-# Debug outputs
-output "debug_node_name" {
-  value = var.node_name
-}
-
-output "debug_template_name" {
-  value = var.template_name
-}
-
-output "debug_available_vms" {
-  value = data.proxmox_virtual_environment_vms.templates.vms
-}
-
-output "debug_proxmox_endpoint" {
-  value = var.proxmox_endpoint
-}
-
-output "debug_resource_pool" {
-  value = var.resource_pool
-}
-
-output "debug_vm_configs" {
-  value = var.vm_configs
-}
-
-output "debug_all_vms" {
-  value = data.proxmox_virtual_environment_vms.all_vms.vms
-}
 
 locals {
   template_vm = try(
@@ -46,33 +18,23 @@ locals {
     }
   )
 
-  # VM Type Definitions
-  vm_types = {
-    control = {
-      prefix  = "control-"
-      base_id = 200
-    }
-    worker = {
-      prefix  = "worker-"
-      base_id = 300
-    }
-    runner = {
-      prefix  = "runner-"
-      base_id = 400
-    }
-    other = {
-      prefix  = ""
-      base_id = 500
-    }
+  # Dictionary to map role prefixes to unique ID ranges
+  # This avoids the need for complicated hashing or regex operations
+  role_id_ranges = {
+    "control" = 200
+    "worker"  = 300
+    "vault"   = 400
+    "runner"  = 500
+    "default" = 900  # Fallback for unknown types
   }
 
-  # Calculate VM ID based on name
+  # Calculate VM ID for all VMs
   vm_id_map = {
     for name, config in var.vm_configs : name => (
-      startswith(name, local.vm_types.control.prefix) ? local.vm_types.control.base_id + tonumber(substr(name, length(local.vm_types.control.prefix), -1)) :
-      startswith(name, local.vm_types.worker.prefix) ? local.vm_types.worker.base_id + tonumber(substr(name, length(local.vm_types.worker.prefix), -1)) :
-      startswith(name, local.vm_types.runner.prefix) ? local.vm_types.runner.base_id + tonumber(substr(name, length(local.vm_types.runner.prefix), -1)) :
-      local.vm_types.other.base_id + tonumber(substr(name, length(local.vm_types.other.prefix), -1))
+      # Split the name to get the role prefix (e.g., "vault" from "vault-2")
+      # and assign an ID based on the role + instance number
+      (local.role_id_ranges[can(regex("^([a-z]+)-[0-9]+", name)) ? regex("^([a-z]+)", name)[0] : "default"] +
+       try(tonumber(regex("-([0-9]+)$", name)[0]), 0))
     )
   }
 }
