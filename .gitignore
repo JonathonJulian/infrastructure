@@ -18,3 +18,8 @@ override.tf.json
 terraform.rc
 charts/**/charts/**
 charts/**/charts
+# macOS system files
+.DS_Store
+._.DS_Store
+**/.DS_Store
+**/._.DS_Store
