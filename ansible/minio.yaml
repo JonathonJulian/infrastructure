@@ -1,0 +1,203 @@
+---
+# Workaround for macOS Python/fork issue
+# Run with: OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ansible-playbook -i inventory ansible/minio.yaml
+
+- name: Install and configure MinIO for Terraform state storage
+  hosts: minio
+  become: true
+  gather_facts: true
+  # Fork settings to help with macOS issues
+  strategy: linear
+  vars:
+    server_hostname: "tf-minio.lab.local"
+    ssl_key_size: 4096
+    ssl_certificate_provider: selfsigned
+    minio_data_dirs:
+      - /var/lib/minio
+
+  pre_tasks:
+    - name: Create certificates directory if it doesn't exist
+      file:
+        path: "certificates"
+        state: directory
+        mode: 0755
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Create private key
+      community.crypto.openssl_privatekey:
+        path: "certificates/{{ inventory_hostname }}_private.key"
+        size: "{{ ssl_key_size | int }}"
+        mode: 0644
+      delegate_to: localhost
+      become: false
+
+    - name: Create certificate signing request (CSR)
+      community.crypto.openssl_csr:
+        path: "certificates/{{ inventory_hostname }}_cert.csr"
+        privatekey_path: "certificates/{{ inventory_hostname }}_private.key"
+        common_name: "{{ server_hostname }}"
+        subject_alt_name:
+          - "DNS:{{ server_hostname }}"
+          - "DNS:{{ inventory_hostname }}"
+          - "DNS:tf-minio.lab.local"
+          - "DNS:localhost"
+          - "IP:{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] | default('127.0.0.1') }}"
+          - "IP:127.0.0.1"
+      delegate_to: localhost
+      become: false
+
+    - name: Create self-signed certificate
+      community.crypto.x509_certificate:
+        path: "certificates/{{ inventory_hostname }}_public.crt"
+        csr_path: "certificates/{{ inventory_hostname }}_cert.csr"
+        privatekey_path: "certificates/{{ inventory_hostname }}_private.key"
+        provider: "{{ ssl_certificate_provider }}"
+        selfsigned_not_after: "+3650d"  # Valid for 10 years
+      delegate_to: localhost
+      become: false
+
+    - name: Load TLS key and cert
+      set_fact:
+        minio_key: "{{ lookup('file', 'certificates/' + inventory_hostname + '_private.key') }}"
+        minio_cert: "{{ lookup('file', 'certificates/' + inventory_hostname + '_public.crt') }}"
+
+  roles:
+    - role: ricsanfre.minio
+      vars:
+        # Server basics
+        minio_install_server: true
+        minio_install_client: true
+        minio_root_user: "minioadmin"
+        minio_root_password: "supersecret"  # Replace with Vault secret in production
+        minio_site_region: "us-west-1"
+
+        # Network configuration
+        minio_server_addr: ""  # Listen on all interfaces
+        minio_server_port: "9091"
+        minio_console_port: "9092"
+
+        # Storage configuration
+        minio_server_make_datadirs: true
+        minio_server_datadirs: "{{ minio_data_dirs }}"
+
+        # TLS configuration
+        minio_enable_tls: true
+        minio_validate_certificate: false
+        minio_alias: "tf-minio"
+
+        # Buckets - simplified for Terraform
+        minio_buckets:
+          - name: terraform-state
+            policy: private
+
+        # Users - Terraform needs access
+        minio_users:
+          - name: terraform
+            password: "terraform123"  # Store this in Vault in production
+            buckets_acl:
+              - name: terraform-state
+                policy: read-write
+
+  post_tasks:
+    - name: Verify and ensure terraform-state bucket
+      shell: |
+        # Configure mc client
+        /usr/local/bin/mc alias set terraform-verify https://127.0.0.1:9091 minioadmin supersecret --insecure
+
+        # Check if bucket exists, create it if not
+        if ! /usr/local/bin/mc ls terraform-verify/terraform-state &>/dev/null; then
+          echo "Creating terraform-state bucket..."
+          /usr/local/bin/mc mb terraform-verify/terraform-state
+          echo "Setting bucket policy to private..."
+          /usr/local/bin/mc policy set private terraform-verify/terraform-state
+          echo "✅ Bucket terraform-state created successfully."
+        else
+          echo "✅ terraform-state bucket already exists."
+        fi
+      register: bucket_verification
+      changed_when: "'Creating terraform-state bucket' in bucket_verification.stdout"
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Create summary report directory
+      file:
+        path: "reports"
+        state: directory
+        mode: 0755
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Generate MinIO summary report
+      copy:
+        content: |
+          =================================================================
+                            MINIO DEPLOYMENT SUMMARY
+          =================================================================
+
+          TERRAFORM BUCKET VERIFICATION
+          -----------------------------
+          {{ bucket_verification.stdout_lines | join('\n') }}
+
+
+          SERVER ENDPOINTS
+          ---------------
+          • S3 API:    https://tf-minio.lab.local:9091
+          • Web UI:    https://tf-minio.lab.local:9092
+
+          CREDENTIALS
+          ----------
+          • Admin:
+            Username: minioadmin
+            Password: supersecret
+
+          • Terraform User:
+            Username: terraform
+            Password: terraform123
+
+          TERRAFORM CONFIGURATION
+          ----------------------
+
+          terraform {
+            backend "s3" {
+              bucket                      = "terraform-state"
+              key                         = "terraform.tfstate"
+              region                      = "us-west-1"
+
+              endpoint                    = "https://tf-minio.lab.local:9091"
+
+              skip_credentials_validation = true
+              skip_metadata_api_check     = true
+              skip_region_validation      = true
+              force_path_style            = true
+
+              # Credentials as environment variables:
+              # export AWS_ACCESS_KEY_ID="terraform"
+              # export AWS_SECRET_ACCESS_KEY="terraform123"
+            }
+          }
+
+          =================================================================
+
+        dest: "reports/minio_summary.txt"
+        mode: 0644
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Display summary location
+      debug:
+        msg: "MinIO deployment complete! Summary available at: {{ playbook_dir }}/../reports/minio_summary.txt"
+
+    - name: Display report contents
+      command: cat reports/minio_summary.txt
+      register: report_contents
+      changed_when: false
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Show report
+      debug:
+        msg: "{{ report_contents.stdout_lines }}"

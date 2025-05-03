@@ -1,0 +1,107 @@
+---
+- name: Setup standalone DNS server
+  hosts: dns
+  become: true
+  tasks:
+    - name: Wait for apt lock to be released
+      shell: while lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done;
+      changed_when: false
+      timeout: 300
+
+    - name: Install required system packages
+      ansible.builtin.package:
+        name:
+          - python3
+          - python3-pip
+        state: present
+
+  roles:
+    - role: robertdebock.dns
+      vars:
+        # Configure zones for your domain
+        dns_zones:
+          - name: lab.local
+            type: primary
+            ttl: 3600
+            records:
+              - name: "@"
+                type: A
+                value: "{{ ansible_host }}"
+              - name: "@"
+                type: NS
+                value: "ns.lab.local."  # NS record for the zone
+              - name: "ns"
+                type: A
+                value: "{{ ansible_host }}"  # A record for the nameserver
+              - name: "www"
+                type: CNAME
+                value: "@"
+              - name: "proxmox"
+                type: A
+                value: "192.168.1.100"  # Proxmox server IP
+              - name: "pve"
+                type: CNAME
+                value: "proxmox"        # Alias for proxmox
+              - name: "k8s"
+                type: A
+                value: "192.168.1.101"  # Control-0 IP
+              - name: "kubernetes"
+                type: CNAME
+                value: "k8s"            # Alias for k8s
+              - name: "api.k8s"
+                type: A
+                value: "192.168.1.101"  # API endpoint on control-0
+              - name: "control-0"
+                type: A
+                value: "192.168.1.101"  # Control-0 node
+              - name: "control-1"
+                type: A
+                value: "192.168.1.102"  # Control-1 node
+              - name: "control-2"
+                type: A
+                value: "192.168.1.103"  # Control-2 node
+              - name: "minio"
+                type: A
+                value: "192.168.1.11"  # MinIO server for Terraform
+              - name: "vault"
+                type: A
+                value: "192.168.1.240"  # Vault-0 IP
+              - name: "vault"
+                type: A
+                value: "192.168.1.241"  # Vault-1 IP (HA round-robin)
+              - name: "vault"
+                type: A
+                value: "192.168.1.242"  # Vault-2 IP (HA round-robin)
+              - name: "vault-0"
+                type: A
+                value: "192.168.1.240"  # Vault-0 specific IP
+              - name: "vault-1"
+                type: A
+                value: "192.168.1.241"  # Vault-1 specific IP
+              - name: "vault-2"
+                type: A
+                value: "192.168.1.242"  # Vault-2 specific IP
+              - name: "tf-minio"
+                type: A
+                value: "192.168.1.11"  # MinIO server for Terraform
+
+        # Configure listening interfaces
+        dns_listen_on:
+          - any
+        dns_listen_on_v6:
+          - any
+
+        # Configure access control
+        dns_allow_query:
+          - any
+        dns_allow_recursion:
+          - 192.168.1.0/24  # Allow recursion for internal network only
+          - localhost
+
+        # Configure forwarders (upstream DNS)
+        dns_forwarders:
+          - 8.8.8.8
+          - 1.1.1.1
+
+        # BIND configuration path
+        dns_pid_file: /run/named/named.pid

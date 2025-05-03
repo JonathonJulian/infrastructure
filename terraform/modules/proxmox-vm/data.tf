@@ -25,15 +25,22 @@ locals {
     "worker"  = 300
     "vault"   = 400
     "runner"  = 500
-    "default" = 900  # Fallback for unknown types
+    "minio"   = 600
+    "dns"     = 700
+    "default" = 900
   }
 
   # Calculate VM ID for all VMs
   vm_id_map = {
     for name, config in var.vm_configs : name => (
-      # Split the name to get the role prefix (e.g., "vault" from "vault-2")
-      # and assign an ID based on the role + instance number
-      (local.role_id_ranges[can(regex("^([a-z]+)-[0-9]+", name)) ? regex("^([a-z]+)", name)[0] : "default"] +
+      # First, check if the whole name is in role_id_ranges
+      # If not, try to extract the prefix from names like "vault-2"
+      # If all else fails, fall back to "default"
+      (local.role_id_ranges[
+        contains(keys(local.role_id_ranges), name) ? name :
+        can(regex("^([a-z]+)-[0-9]+", name)) ? regex("^([a-z]+)", name)[0] :
+        "default"
+      ] +
        try(tonumber(regex("-([0-9]+)$", name)[0]), 0))
     )
   }

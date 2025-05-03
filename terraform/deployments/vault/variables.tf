@@ -33,11 +33,14 @@ variable "default_gateway" {
   default     = "192.168.1.254"
 }
 
-
-
 variable "vault_ips" {
   description = "IP addresses for Vault nodes"
   type        = list(string)
   default     = ["192.168.1.240", "192.168.1.241", "192.168.1.242"]
 }
 
+variable "resource_pool" {
+  description = "Proxmox resource pool - specific to this deployment"
+  type        = string
+  default     = "vault"
+}
