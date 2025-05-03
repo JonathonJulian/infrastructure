@@ -2,13 +2,13 @@ csi:
   config:
     clusters:
       - url: "https://192.168.1.100:8006/api2/json"
-      insecure: true  # For self-signed certificates
+        insecure: true  # For self-signed certificates
         token_id: kubernetes-csi@pve!csi
-        token_secret: "5d760ea7-df72-49f4-9eb0-dbc4f28f9765"
+        token_secret: "${PROXMOX_CSI_TOKEN_SECRET}"
         region: "LAB"
-      nodes:
-        - name: "pve"
-          endpoint: "192.168.1.100"
+        nodes:
+          - name: "pve"
+            endpoint: "192.168.1.100"
             region: "LAB"
             zone: "pve"
 
