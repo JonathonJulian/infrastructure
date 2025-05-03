@@ -1,8 +1,25 @@
 terraform {
-  backend "local" {
-    path = "state/terraform.tfstate"
+  backend "s3" {
+    bucket = "terraform-state"           # Name of the S3 bucket
+    key    = "k8s/terraform.tfstate"     # Name of the tfstate file
+
+    endpoints = {
+      s3 = "https://minio.lab.local:9091"    # MinIO endpoint (using HTTPS)
+    }
+
+    # Credentials will be provided by environment variables set by the tf-with-vault.sh script:
+    # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+
+    region                      = "us-west-1"   # Region will be ignored
+    skip_credentials_validation = true    # Skip AWS related checks and validations
+    skip_requesting_account_id  = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    use_path_style              = true    # Enable path-style S3 URLs
+    insecure                    = true    # Skip TLS certificate verification
   }
 }
+
 
 # Generate secure RKE2 token
 resource "random_string" "rke2_token" {
@@ -23,7 +40,7 @@ module "k8s_cluster" {
     datastore       = var.datastore
     subnet_mask     = "24"
     default_gateway = var.default_gateway
-    dns_servers     = ["8.8.8.8"]
+    dns_servers     = ["192.168.1.230"]
     username        = "ubuntu"
     ssh_public_keys = var.public_keys
   }
@@ -86,7 +103,7 @@ module "k8s_cluster" {
 
   # Inventory generation
   inventory_enabled      = true
-  inventory_template_path = "${path.module}/ansible_inventory_rke2.tmpl"
+  inventory_template_path = "${path.module}/inventory.tmpl"
   inventory_filename     = "rke2.ini"
   inventory_extra_vars   = {
     ansible_user = "ubuntu"
