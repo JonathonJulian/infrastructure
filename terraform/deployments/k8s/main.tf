@@ -4,7 +4,7 @@ terraform {
     key    = "k8s/terraform.tfstate"     # Name of the tfstate file
 
     endpoints = {
-      s3 = "https://192.168.1.11:9091"    # MinIO endpoint (using HTTPS)
+      s3 = "https://minio.lab.local:9091"    # MinIO endpoint (using HTTPS)
     }
 
     # Credentials will be provided by environment variables set by the tf-with-vault.sh script:
