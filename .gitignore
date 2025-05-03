@@ -23,3 +23,7 @@ charts/**/charts
 ._.DS_Store
 **/.DS_Store
 **/._.DS_Store
+
+# Environment variables
+.env
+*.lock.hcl
