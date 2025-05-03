@@ -55,6 +55,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   initialization {
     dns {
       servers = coalesce(lookup(each.value, "dns_servers", null), var.common_config.dns_servers)
+      domain = coalesce(lookup(each.value, "dns_domain", null), var.dns_domain)
     }
 
     ip_config {

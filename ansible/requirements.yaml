@@ -4,3 +4,22 @@ roles:
     src: https://github.com/lablabs/ansible-role-rke2.git
     scm: git
     version: "v0.9.0"
+
+  # DNS server role for BIND
+  - name: robertdebock.dns
+    version: "4.0.3"  # Using the latest version available
+
+  # Dependencies for robertdebock.dns
+  - name: robertdebock.core_dependencies
+    version: "2.2.14"  # Using the latest version available
+
+  - name: robertdebock.vault
+    version: "6.1.5"
+
+  - name: ricsanfre.minio
+    version: "v1.1.11"
+collections:
+  - name: community.general
+    version: "5.5.0"
+  - name: community.crypto
+    version: "2.26.0"

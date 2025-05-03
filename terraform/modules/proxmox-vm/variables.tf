@@ -3,7 +3,7 @@
 variable "proxmox_endpoint" {
   description = "Proxmox API endpoint"
   type        = string
-  default     = "https://192.168.1.100:8006"
+  default     = "https://pve.lab.local:8006"
 }
 
 variable "proxmox_token" {
@@ -34,6 +34,12 @@ variable "resource_pool" {
   description = "Proxmox resource pool name"
   type        = string
   default     = "k8s"
+}
+
+variable "dns_domain" {
+  description = "DNS domain for all VMs"
+  type        = string
+  default     = "lab.local"
 }
 
 ## Common Configuration ##
@@ -106,7 +112,7 @@ variable "default_disk_size" {
 variable "inventory_enabled" {
   description = "Whether to generate an inventory file"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "inventory_template_path" {

@@ -1,7 +1,7 @@
 terraform {
   backend "s3" {
     bucket = "terraform-state"           # Name of the S3 bucket
-    key    = "vault/terraform.tfstate"     # Name of the tfstate file
+    key    = "minio/terraform.tfstate"     # Name of the tfstate file
 
     endpoints = {
       s3 = "https://minio.lab.local:9091"    # MinIO endpoint (using HTTPS)
@@ -20,12 +20,11 @@ terraform {
   }
 }
 
-module "vault_cluster" {
+module "minio" {
   source = "../../modules/proxmox-vm"
   # Only the API token is truly required, others use module defaults
   proxmox_token = var.proxmox_token
 
-  resource_pool = var.resource_pool
   # Override only the specific common settings that differ from module defaults
   common_config = {
     datastore       = var.datastore
@@ -36,35 +35,21 @@ module "vault_cluster" {
     ssh_public_keys = var.public_keys
   }
 
-  # VM configurations
+  # VM configurations - using a simple VM name without a type prefix
   vm_configs = {
-    "vault-0" = {
-      name         = "vault-0"
-      cpu          = 4
-      memory       = 8
+    "minio" = {
+      name         = "minio"
+      cpu          = 2
+      memory       = 4
       disk_size_gb = 50
-      ip_address   = var.vault_ips[0]
-    },
-    "vault-1" = {
-      name         = "vault-1"
-      cpu          = 4
-      memory       = 8
-      disk_size_gb = 50
-      ip_address   = var.vault_ips[1]
-    },
-    "vault-2" = {
-      name         = "vault-2"
-      cpu          = 4
-      memory       = 8
-      disk_size_gb = 50
-      ip_address   = var.vault_ips[2]
+      ip_address   = "192.168.1.11"
     }
   }
 
   # Inventory generation
   inventory_enabled      = true
-  inventory_template_path = "${path.module}/ansible_inventory_vault.tmpl"
-  inventory_filename     = "vault.ini"
+  inventory_template_path = "${path.module}/inventory.tmpl"
+  inventory_filename     = "minio.ini"
   inventory_extra_vars   = {
     ansible_user = "ubuntu"
     private_key  = "~/.ssh/id_ed25519"
