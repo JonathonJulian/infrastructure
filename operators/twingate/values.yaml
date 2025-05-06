@@ -1,0 +1,46 @@
+---
+twingateOperator:
+  # Your Twingate network slug (e.g., "mycompany" from "mycompany.twingate.com")
+  network: "maroonsnake"
+
+  # API key configuration - we're using a Kubernetes Secret created from Vault
+  # The secret is named "twop-twingate-operator" with a key "TWINGATE_API_KEY"
+  apiKey: ""
+  apiKeyExistingSecret: "twop-twingate-operator"
+  apiKeyExistingSecretKey: "TWINGATE_API_KEY"
+
+  # The Remote Network ID for your Kubernetes cluster
+  # Find this in your Twingate Admin Console
+  remoteNetworkId: "UmVtb3RlTmV0d29yazoxMTk4NDY="
+
+  # Logging configuration
+  logFormat: "plain" # Options: plain, full, json
+  logLevel: "info"   # Options: debug, info, warn, error
+
+  # Security context for the operator
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+
+  # Resource requests and limits
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+
+# Namespace to deploy the operator
+# Leave empty to use the current namespace
+namespace: "twingate-system"
+
+# Service account configuration
+serviceAccount:
+  create: true
+  name: "twingate-operator"
+
+# RBAC configuration
+rbac:
+  create: true

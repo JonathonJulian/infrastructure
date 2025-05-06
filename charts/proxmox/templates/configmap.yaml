@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "proxmox-csi.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.yaml: |
+    clusters:
+      {{- range .Values.csi.config.clusters }}
+      - url: {{ .url | quote }}
+        insecure: {{ .insecure }}
+        token_id: {{ .token_id | quote }}
+        token_secret: "${PROXMOX_TOKEN}"
+        region: {{ .region | quote }}
+        nodes:
+        {{- range .nodes }}
+          - name: {{ .name | quote }}
+            endpoint: {{ .endpoint | quote }}
+            region: {{ .region | quote }}
+            zone: {{ .zone | quote }}
+        {{- end }}
+      {{- end }}

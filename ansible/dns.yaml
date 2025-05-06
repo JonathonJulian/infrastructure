@@ -15,6 +15,28 @@
           - python3-pip
         state: present
 
+    - name: Check current zone file
+      command: cat /var/lib/bind/lab.local.db
+      register: zone_file
+      changed_when: false
+
+    - name: Display current zone file
+      debug:
+        var: zone_file.stdout_lines
+
+    - name: Clean up any duplicate vault records
+      lineinfile:
+        path: /var/lib/bind/lab.local.db
+        regexp: '^vault\s+.*\s+A\s+192\.168\.1\.(240|241|242)$'
+        state: absent
+      register: cleanup
+
+    - name: Restart BIND if cleaned up records
+      systemd:
+        name: named
+        state: restarted
+      when: cleanup.changed
+
   roles:
     - role: robertdebock.dns
       vars:
@@ -65,13 +87,8 @@
                 value: "192.168.1.11"  # MinIO server for Terraform
               - name: "vault"
                 type: A
-                value: "192.168.1.240"  # Vault-0 IP
-              - name: "vault"
-                type: A
-                value: "192.168.1.241"  # Vault-1 IP (HA round-robin)
-              - name: "vault"
-                type: A
-                value: "192.168.1.242"  # Vault-2 IP (HA round-robin)
+                value: "192.168.1.20"  # HAProxy for Vault
+              # Keep direct access to individual vault nodes
               - name: "vault-0"
                 type: A
                 value: "192.168.1.240"  # Vault-0 specific IP
@@ -84,7 +101,6 @@
               - name: "tf-minio"
                 type: A
                 value: "192.168.1.11"  # MinIO server for Terraform
-
         # Configure listening interfaces
         dns_listen_on:
           - any

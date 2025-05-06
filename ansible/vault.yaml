@@ -18,15 +18,15 @@
     vault_tls_organization: "Home Lab"
     vault_tls_organizational_unit: "IT"
     vault_tls_days_valid: 3650
-    # GitHub configuration - customize these
+    # GitHub configuration
     vault_github_organization: "5dlabs"
     vault_github_teams:
       - name: "infrastructure"
-        policies: ["terraform-admin"]
+        policies: ["terraform-admin", "kubernetes-access"]
     vault_github_users:
       - name: "JonathonJulian"
-        policies: ["terraform-admin"]
-    # MinIO credentials - update these
+        policies: ["terraform-admin", "kubernetes-access"]
+    # MinIO credentials
     vault_minio_terraform_access_key: "terraform"
     vault_minio_terraform_secret_key: "terraform123"
 
@@ -129,6 +129,9 @@
           - "DNS:{{ inventory_hostname }}"
           - "DNS:{{ ansible_hostname }}"
           - "IP:{{ ansible_host }}"
+          - "DNS:vault.lab.local"
+          - "IP:127.0.0.1"
+      notify: restart vault
 
     - name: Sign node certificates with CA on leader
       community.crypto.x509_certificate:
@@ -140,7 +143,6 @@
         ownca_not_after: "+{{ vault_tls_days_valid }}d"
       when: inventory_hostname == vault_leader
 
-    # For other nodes, transfer CSR to leader, sign, and return
     - name: Fetch CSR from non-leader nodes
       fetch:
         src: "/etc/vault.d/tls/vault.csr"
@@ -148,7 +150,6 @@
         flat: yes
       when: inventory_hostname != vault_leader
 
-    # Copy CSRs to leader node for signing
     - name: Copy CSRs to leader for signing
       copy:
         src: "/tmp/{{ item }}.csr"
@@ -170,7 +171,6 @@
       with_items: "{{ groups['vault'] | difference([vault_leader]) }}"
       when: inventory_hostname == vault_leader
 
-    # Fetch signed certificates from leader to Ansible controller
     - name: Fetch signed certificates from leader
       fetch:
         src: "/tmp/{{ item }}.crt"
@@ -180,38 +180,160 @@
       with_items: "{{ groups['vault'] | difference([vault_leader]) }}"
       when: inventory_hostname == vault_leader
 
-    # Distribute signed certificates from Ansible controller to other nodes
     - name: Distribute signed certificates
       copy:
         src: "/tmp/{{ inventory_hostname }}.crt"
         dest: "/etc/vault.d/tls/vault.crt"
         mode: '0644'
       when: inventory_hostname != vault_leader
+      notify: restart vault
+
+    - name: Check if Vault data directory exists
+      stat:
+        path: "{{ vault_data_directory }}"
+      register: data_dir_stat
+
+    - name: Backup existing Vault data if it exists
+      command: mv {{ vault_data_directory }} {{ vault_data_directory }}_backup_{{ ansible_date_time.iso8601 | replace(':', '-') }}
+      when: data_dir_stat.stat.exists
+
+    # Ensure Vault data directory exists
+    - name: Create vault group
+      group:
+        name: vault
+        state: present
+
+    - name: Create vault user
+      user:
+        name: vault
+        group: vault
+        system: yes
+        state: present
+
+    - name: Create Vault data directory
+      file:
+        path: "{{ vault_data_directory }}"
+        state: directory
+        owner: vault
+        group: vault
+        mode: '0700'
+
+    # Explicitly configure Vault for Raft
+    - name: Configure Vault for Raft
+      copy:
+        dest: /etc/vault.d/vault.hcl
+        content: |
+          storage "raft" {
+            path = "{{ vault_data_directory }}"
+            node_id = "{{ inventory_hostname }}"
+          }
+          listener "tcp" {
+            address = "0.0.0.0:8200"
+            cluster_address = "{{ ansible_host }}:8201"
+            tls_cert_file = "/etc/vault.d/tls/vault.crt"
+            tls_key_file = "/etc/vault.d/tls/vault.key"
+            tls_client_ca_file = "/etc/vault.d/tls/ca.crt"
+          }
+          api_addr = "https://{{ ansible_host }}:8200"
+          cluster_addr = "https://{{ ansible_host }}:8201"
+          cluster_name = "{{ vault_config_cluster_name }}"
+          ui = true
+        owner: vault
+        group: vault
+        mode: '0640'
+      notify: restart vault
+
+
+    # Check service config
+    - name: Get Vault service config
+      command: systemctl cat vault.service
+      register: vault_service_config
+      changed_when: false
+      failed_when: false  # Don't fail if the file doesn't exist
+
+    - name: Display Vault service config
+      debug:
+        var: vault_service_config.stdout
+
+    - name: Check if service is using the right config file
+      shell: "systemctl cat vault.service | grep ExecStart | grep '/etc/vault.d/vault.hcl'"
+      register: vault_config_check
+      changed_when: false
+      failed_when: false
+
+    - name: Fix Vault service config file
+      copy:
+        dest: /etc/systemd/system/vault.service
+        content: |
+          [Unit]
+          Description="HashiCorp Vault - A tool for managing secrets"
+          Documentation=https://www.vaultproject.io/docs/
+          Requires=network-online.target
+          After=network-online.target
+          ConditionFileNotEmpty=/etc/vault.d/vault.hcl
+          StartLimitIntervalSec=60
+          StartLimitBurst=3
+
+          [Service]
+          User=vault
+          Group=vault
+          ProtectSystem=full
+          ProtectHome=read-only
+          PrivateTmp=yes
+          PrivateDevices=yes
+          SecureBits=keep-caps
+          AmbientCapabilities=CAP_IPC_LOCK
+          Capabilities=CAP_IPC_LOCK+ep
+          CapabilityBoundingSet=CAP_SYSLOG CAP_IPC_LOCK
+          NoNewPrivileges=yes
+          ExecStart=/usr/bin/vault server -config=/etc/vault.d/vault.hcl
+          ExecReload=/bin/kill --signal HUP $MAINPID
+          KillMode=process
+          KillSignal=SIGINT
+          Restart=on-failure
+          RestartSec=5
+          TimeoutStopSec=30
+          LimitNOFILE=65536
+          LimitMEMLOCK=infinity
+
+          [Install]
+          WantedBy=multi-user.target
+        owner: root
+        group: root
+        mode: '0644'
+      when: vault_config_check.rc != 0 or vault_service_config.rc != 0
+      notify: reload systemd and restart vault
+
+    - name: Check Vault configuration file content
+      command: cat /etc/vault.d/vault.hcl
+      register: vault_config_content
+      changed_when: false
+
+    - name: Display Vault configuration
+      debug:
+        var: vault_config_content.stdout
+
+    - name: Check Vault service logs
+      command: journalctl -xe -u vault --no-pager -n 30
+      register: vault_logs
+      changed_when: false
+
+    - name: Display Vault service logs
+      debug:
+        var: vault_logs.stdout
 
   roles:
     - role: robertdebock.vault
       vars:
-        vault_config_storage:
-          raft:
-            path: "/opt/vault/data"
-            node_id: "{{ inventory_hostname }}"
-        vault_config_listener:
-          tcp:
-            address: "0.0.0.0:8200"
-            cluster_address: "{{ ansible_host }}:8201"
-            tls_disable: "false"
-            tls_cert_file: "/etc/vault.d/tls/vault.crt"
-            tls_key_file: "/etc/vault.d/tls/vault.key"
-            tls_client_ca_file: "/etc/vault.d/tls/ca.crt"
-        vault_api_addr: "https://{{ ansible_host }}:8200"
+        vault_manage_config: false
+        vault_manage_service: false
         vault_environment_settings:
           - name: VAULT_ADDR
-            value: "https://{{ ansible_host }}:8200"
+            value: "https://vault.lab.local:8200"
 
-# This post-tasks section handles the Vault initialization and join operations
   post_tasks:
-    # Initialize Vault on the leader node
-    - name: Check if Vault is initialized
+    # Verify storage backend is Raft
+    - name: Check Vault storage backend
       command: vault status -format=json
       environment:
         VAULT_ADDR: "https://127.0.0.1:8200"
@@ -222,27 +344,28 @@
       run_once: true
       delegate_to: "{{ vault_leader }}"
 
-    - name: Debug vault status
-      debug:
-        var: vault_status
+
+    # Step 1: Initialize the leader node first
+    - name: Check if Vault is initialized
+      command: vault status -format=json
+      environment:
+        VAULT_ADDR: "https://127.0.0.1:8200"
+        VAULT_SKIP_VERIFY: "true"
+      register: vault_status_init
+      changed_when: false
+      failed_when: false
       run_once: true
       delegate_to: "{{ vault_leader }}"
 
     - name: Set initialization status fact
       set_fact:
-        vault_is_initialized: "{{ true if vault_status.rc == 0 and vault_status.stdout and (vault_status.stdout | from_json).initialized | default(false) else false }}"
+        vault_is_initialized: "{{ true if vault_status_init.rc == 0 and vault_status_init.stdout and (vault_status_init.stdout | from_json).initialized | default(false) else false }}"
       run_once: true
       delegate_to: "{{ vault_leader }}"
       failed_when: false
 
-    - name: Debug initialization status
-      debug:
-        var: vault_is_initialized
-      run_once: true
-      delegate_to: "{{ vault_leader }}"
-
     - name: Initialize Vault
-      command: vault operator init -format=json
+      command: vault operator init -format=json -key-shares=5 -key-threshold=3
       environment:
         VAULT_ADDR: "https://127.0.0.1:8200"
         VAULT_SKIP_VERIFY: "true"
@@ -252,12 +375,6 @@
         - not vault_is_initialized | bool
       run_once: true
       failed_when: false
-
-    - name: Debug vault init
-      debug:
-        var: vault_init
-      when: inventory_hostname == vault_leader
-      run_once: true
 
     - name: Check for existing vault-init.json
       stat:
@@ -296,7 +413,7 @@
         - vault_init_slurp.content is defined
       run_once: true
 
-    # Unseal the leader node
+    # Step 2: Unseal the leader first (up to 3 keys)
     - name: Unseal leader Vault
       command: vault operator unseal -format=json "{{ item }}"
       environment:
@@ -314,17 +431,49 @@
         index_var: idx
       until: (unseal_result.stdout | default('') | from_json).sealed == false or idx > 2
 
-    # Join other nodes to the Raft cluster and unseal them
+    # Step 3: Verify leader is unsealed
+    - name: Verify leader is unsealed
+      command: vault status -format=json
+      environment:
+        VAULT_ADDR: "https://127.0.0.1:8200"
+        VAULT_SKIP_VERIFY: "true"
+      register: leader_status
+      when: inventory_hostname == vault_leader
+      run_once: true
+      failed_when: false
+      changed_when: false
+
+    - name: Set leader status fact
+      set_fact:
+        leader_unsealed: "{{ (leader_status.stdout | default('') | length > 0) and (leader_status.stdout | from_json).sealed == false }}"
+      when: inventory_hostname == vault_leader and leader_status.stdout is defined
+      run_once: true
+
+    - name: Debug leader status
+      debug:
+        msg: "Leader vault is now unsealed and ready to accept cluster joins"
+      when:
+        - inventory_hostname == vault_leader
+        - leader_unsealed | default(false)
+      run_once: true
+
+    # Step 4: Join other nodes to the Raft cluster with retries
     - name: Join nodes to Raft cluster
       command: vault operator raft join -format=json "https://{{ hostvars[vault_leader].ansible_host }}:8200"
       environment:
         VAULT_ADDR: "https://127.0.0.1:8200"
         VAULT_SKIP_VERIFY: "true"
       register: raft_join
-      when: inventory_hostname != vault_leader
-      changed_when: false
+      when:
+        - inventory_hostname != vault_leader
+        - hostvars[vault_leader].leader_unsealed | default(false)
+      retries: 5
+      delay: 10
+      until: raft_join.rc == 0
       failed_when: false
+      ignore_errors: true
 
+    # Step 5: Unseal other Vault nodes (after successful join)
     - name: Unseal other Vault nodes
       command: vault operator unseal -format=json "{{ item }}"
       environment:
@@ -334,6 +483,7 @@
       when:
         - inventory_hostname != vault_leader
         - hostvars[vault_leader].vault_keys is defined
+        - raft_join is defined
       register: unseal_result
       changed_when: false
       failed_when: false
@@ -355,10 +505,17 @@
       delegate_to: "{{ vault_leader }}"
       run_once: true
 
+    - name: Set raft status parsing fact
+      set_fact:
+        raft_peers: "{{ (raft_status.stdout | from_json) if (raft_status.stdout | default('') | length > 0) and (raft_status.rc | default(1) == 0) else {'data': {'peers': []}} }}"
+      run_once: true
+      when: inventory_hostname == vault_leader
+      failed_when: false
+
     - name: Display Raft cluster status
       debug:
-        msg: "{{ (raft_status.stdout | from_json) if raft_status.stdout|default('') else 'No cluster status available' }}"
-      when: inventory_hostname == vault_leader and raft_status.stdout is defined and raft_status.stdout|default('')
+        msg: "Raft cluster status: {{ raft_peers | default({'data': {'peers': []}}) }}"
+      when: inventory_hostname == vault_leader
       run_once: true
 
     # Configure Vault post-initialization
@@ -385,7 +542,6 @@
       run_once: true
       failed_when: false
 
-    # Enable KV v2 secrets engine
     - name: Enable KV v2 secrets engine for infrastructure
       command: vault secrets enable -path=infrastructure kv-v2
       environment:
@@ -399,7 +555,6 @@
       run_once: true
       failed_when: false
 
-    # Create terraform-admin policy
     - name: Create terraform-admin policy
       copy:
         dest: "/tmp/terraform-admin-policy.hcl"
@@ -414,12 +569,26 @@
           path "infrastructure/metadata/" {
             capabilities = ["list"]
           }
-          # For CLI commands (kv get)
           path "infrastructure/credentials/terraform" {
             capabilities = ["read"]
           }
           path "sys/mounts" {
             capabilities = ["read"]
+          }
+        mode: '0600'
+      when: inventory_hostname == vault_leader
+      run_once: true
+
+    - name: Create kubernetes-access policy
+      copy:
+        dest: "/tmp/kubernetes-access-policy.hcl"
+        content: |
+          # Kubernetes access policy
+          path "kubernetes/*" {
+            capabilities = ["read", "list"]
+          }
+          path "kubernetes/roles/*" {
+            capabilities = ["read", "list"]
           }
         mode: '0600'
       when: inventory_hostname == vault_leader
@@ -437,7 +606,18 @@
       run_once: true
       failed_when: false
 
-    # Check if GitHub auth is enabled
+    - name: Write kubernetes-access policy to Vault
+      command: vault policy write kubernetes-access /tmp/kubernetes-access-policy.hcl
+      environment:
+        VAULT_ADDR: "https://127.0.0.1:8200"
+        VAULT_SKIP_VERIFY: "true"
+        VAULT_TOKEN: "{{ hostvars[vault_leader].vault_root_token | default('') }}"
+      when:
+        - inventory_hostname == vault_leader
+        - hostvars[vault_leader].vault_root_token is defined
+      run_once: true
+      failed_when: false
+
     - name: Check authentication methods
       command: vault auth list -format=json
       environment:
@@ -461,7 +641,6 @@
       run_once: true
       failed_when: false
 
-    # Enable GitHub auth if not already enabled
     - name: Enable GitHub auth
       command: vault auth enable github
       environment:
@@ -475,7 +654,6 @@
       run_once: true
       failed_when: false
 
-    # Configure GitHub auth
     - name: Configure GitHub auth
       command: vault write auth/github/config organization="{{ vault_github_organization }}"
       environment:
@@ -488,7 +666,6 @@
       run_once: true
       failed_when: false
 
-    # Map GitHub teams to policies
     - name: Map GitHub teams to policies
       command: vault write auth/github/map/teams/{{ item.name }} value={{ item.policies | join(',') }}
       environment:
@@ -502,7 +679,6 @@
       run_once: true
       failed_when: false
 
-    # Map individual GitHub users to policies
     - name: Map GitHub users to policies
       command: vault write auth/github/map/users/{{ item.name }} value={{ item.policies | join(',') }}
       environment:
@@ -516,6 +692,35 @@
       run_once: true
       failed_when: false
 
+    # Kubernetes integration
+    - name: Enable Kubernetes secrets engine
+      command: vault secrets enable -path=kubernetes kubernetes
+      environment:
+        VAULT_ADDR: "https://127.0.0.1:8200"
+        VAULT_SKIP_VERIFY: "true"
+        VAULT_TOKEN: "{{ hostvars[vault_leader].vault_root_token | default('') }}"
+      register: k8s_secrets_result
+      when:
+        - inventory_hostname == vault_leader
+        - hostvars[vault_leader].vault_root_token is defined
+      run_once: true
+      failed_when: false
+      changed_when: false
+
+    - name: Create demo Kubernetes role
+      command: vault write kubernetes/roles/demo-role allowed_kubernetes_namespaces=default service_account_name=default token_ttl=1h token_max_ttl=24h
+      environment:
+        VAULT_ADDR: "https://127.0.0.1:8200"
+        VAULT_SKIP_VERIFY: "true"
+        VAULT_TOKEN: "{{ hostvars[vault_leader].vault_root_token | default('') }}"
+      when:
+        - inventory_hostname == vault_leader
+        - hostvars[vault_leader].vault_root_token is defined
+        - k8s_secrets_result.rc is defined and k8s_secrets_result.rc == 0 or "already exists" in k8s_secrets_result.stderr | default('')
+      run_once: true
+      failed_when: false
+      changed_when: false
+
     - name: Display important information
       debug:
         msg: |
@@ -524,7 +729,7 @@
           Root token has been saved to /root/vault-init.json on the leader node ({{ vault_leader }}).
           IMPORTANT: Store this securely and remove from server after using!
 
-          Access the Vault UI at: https://{{ ansible_host }}:8200
+          Access the Vault UI at: https://vault.lab.local:8200
 
           Authentication has been configured for GitHub users.
           MinIO credentials for Terraform have been stored at: infrastructure/credentials/terraform
@@ -538,3 +743,15 @@
           vault kv get infrastructure/credentials/terraform
       when: inventory_hostname == vault_leader
       run_once: true
+
+  handlers:
+    - name: restart vault
+      service:
+        name: vault
+        state: restarted
+
+    - name: reload systemd and restart vault
+      systemd:
+        daemon_reload: yes
+        name: vault
+        state: restarted

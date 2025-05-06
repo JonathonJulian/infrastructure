@@ -1,0 +1,154 @@
+---
+- name: Configure HAProxy for Vault HA
+  hosts: haproxy
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install prerequisite packages
+      apt:
+        name:
+          - curl
+          - openssl
+          - python3-pip
+          - haproxy
+        state: present
+        update_cache: yes
+
+    # Create key, CSR, and certificate in proper sequence
+    - name: Generate private key for HAProxy
+      openssl_privatekey:
+        path: /etc/ssl/private/haproxy.key
+        size: 2048
+        mode: '0600'
+        owner: root
+        group: root
+      register: haproxy_key
+
+    - name: Generate CSR for HAProxy
+      openssl_csr:
+        path: /etc/ssl/certs/haproxy.csr
+        privatekey_path: /etc/ssl/private/haproxy.key
+        country_name: US
+        state_or_province_name: California
+        locality_name: "San Francisco"
+        organization_name: "Home Lab"
+        organizational_unit_name: "Infrastructure"
+        common_name: "vault.lab.local"
+        subject_alt_name:
+          - "DNS:vault.lab.local"
+          - "DNS:{{ ansible_hostname }}"
+          - "IP:{{ ansible_host }}"
+      register: haproxy_csr
+
+    - name: Generate self-signed certificate for HAProxy
+      openssl_certificate:
+        path: /etc/ssl/certs/haproxy.pem
+        privatekey_path: /etc/ssl/private/haproxy.key
+        csr_path: /etc/ssl/certs/haproxy.csr
+        provider: selfsigned
+        selfsigned_not_after: "+3650d"
+      register: haproxy_cert
+
+    # Now that HAProxy is installed, the haproxy group exists
+    - name: Combine key and certificate for HAProxy
+      shell: cat /etc/ssl/private/haproxy.key /etc/ssl/certs/haproxy.pem > /etc/ssl/private/haproxy-combined.pem
+      args:
+        creates: /etc/ssl/private/haproxy-combined.pem
+      when: haproxy_cert.changed
+
+    - name: Set proper permissions on combined cert
+      file:
+        path: /etc/ssl/private/haproxy-combined.pem
+        owner: haproxy
+        group: haproxy
+        mode: '0400'
+
+    # Configure HAProxy directly in the config file
+    - name: Create HAProxy configuration
+      copy:
+        dest: /etc/haproxy/haproxy.cfg
+        content: |
+          # Global settings
+          global
+              log /dev/log local0
+              log /dev/log local1 notice
+              chroot /var/lib/haproxy
+              stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
+              stats timeout 30s
+              user haproxy
+              group haproxy
+              daemon
+
+              # Default SSL material locations
+              ca-base /etc/ssl/certs
+              crt-base /etc/ssl/private
+
+              # SSL configurations
+              ssl-default-bind-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+              ssl-default-bind-options ssl-min-ver TLSv1.2 no-tls-tickets
+
+          # Default settings
+          defaults
+              log     global
+              mode    http
+              option  httplog
+              option  dontlognull
+              timeout connect 5000
+              timeout client  50000
+              timeout server  50000
+              errorfile 400 /etc/haproxy/errors/400.http
+              errorfile 403 /etc/haproxy/errors/403.http
+              errorfile 408 /etc/haproxy/errors/408.http
+              errorfile 500 /etc/haproxy/errors/500.http
+              errorfile 502 /etc/haproxy/errors/502.http
+              errorfile 503 /etc/haproxy/errors/503.http
+              errorfile 504 /etc/haproxy/errors/504.http
+
+          # Stats configuration
+          listen stats
+              bind {{ ansible_host }}:8404
+              mode http
+              stats enable
+              stats uri /stats
+              stats realm HAProxy\ Statistics
+              stats auth admin:StatsSecureP@ss
+
+          # Vault Frontend Configuration
+          frontend vault_frontend
+              bind *:8200 ssl crt /etc/ssl/private/haproxy-combined.pem
+              option tcplog
+              mode tcp
+              default_backend vault_backend
+
+          # Vault Backend Configuration
+          backend vault_backend
+              mode tcp
+              option tcplog
+              option ssl-hello-chk
+              option httpchk GET /v1/sys/health?standbyok=true
+              balance roundrobin
+              server vault_0 192.168.1.240:8200 check check-ssl ssl verify none weight 100
+              server vault_1 192.168.1.241:8200 check check-ssl ssl verify none backup weight 50
+              server vault_2 192.168.1.242:8200 check check-ssl ssl verify none backup weight 50
+        owner: root
+        group: root
+        mode: '0644'
+      notify: restart haproxy
+
+    - name: Verify HAProxy is running
+      service:
+        name: haproxy
+        state: started
+        enabled: true
+
+    - name: Update DNS record for vault.lab.local to point to HAProxy
+      debug:
+        msg: "Remember to update your DNS to point vault.lab.local to {{ ansible_host }}"
+      changed_when: false
+
+  handlers:
+    - name: restart haproxy
+      service:
+        name: haproxy
+        state: restarted

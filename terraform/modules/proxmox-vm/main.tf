@@ -2,7 +2,14 @@ provider "proxmox" {
   endpoint  = var.proxmox_endpoint
   api_token = var.proxmox_token
   insecure  = true
+
+  ssh {
+    agent    = var.proxmox_ssh_agent
+    username = var.proxmox_ssh_username
+  }
 }
+
+# Use Proxmox's built-in cloud-init support directly in the VM initialization block
 
 # Clone from existing template for each VM
 resource "proxmox_virtual_environment_vm" "vm" {
@@ -13,9 +20,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
   vm_id     = local.vm_id_map[each.value.name]
   pool_id   = var.resource_pool
 
-  # Add retry logic for worker errors
+  # Ensure destroy-before-create behavior for VM replacements
   lifecycle {
-    create_before_destroy = true
+    create_before_destroy = false
+    prevent_destroy = false
     ignore_changes = [
       # Ignore changes to these attributes as they are managed by Proxmox
       network_device,
@@ -54,7 +62,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   initialization {
     dns {
-      servers = coalesce(lookup(each.value, "dns_servers", null), var.common_config.dns_servers)
+      servers = [var.primary_dns_server]  # Only use the primary DNS server
       domain = coalesce(lookup(each.value, "dns_domain", null), var.dns_domain)
     }
 
