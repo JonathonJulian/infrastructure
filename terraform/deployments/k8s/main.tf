@@ -102,7 +102,7 @@ module "k8s_cluster" {
 
   # Inventory generation
   inventory_enabled      = true
-  inventory_template_path = "${path.module}/ansible_inventory_rke2.tmpl"
+  inventory_template_path = "${path.module}/inventory.tmpl"
   inventory_filename     = "rke2.ini"
   inventory_extra_vars   = {
     ansible_user = "ubuntu"

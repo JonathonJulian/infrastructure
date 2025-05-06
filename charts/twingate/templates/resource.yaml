@@ -1,0 +1,11 @@
+{{- range .Values.resources }}
+apiVersion: twingate.com/v1beta
+kind: TwingateResource
+metadata:
+  name: {{ .name }}
+  namespace: {{ .namespace | default "default" }}
+spec:
+  name: {{ .spec.name | quote }}
+  address: {{ .spec.address | quote }}
+  alias: {{ .spec.alias | quote }}
+{{- end }}

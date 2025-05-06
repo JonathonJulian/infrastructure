@@ -144,3 +144,27 @@ variable "inventory_extra_vars" {
   type        = map(any)
   default     = {}
 }
+
+variable "snippets_storage_id" {
+  description = "Proxmox storage ID for cloud-init snippets"
+  type        = string
+  default     = "snippets"
+}
+
+variable "proxmox_ssh_username" {
+  description = "Username for SSH connections to Proxmox host"
+  type        = string
+  default     = "root"
+}
+
+variable "proxmox_ssh_agent" {
+  description = "Whether to use SSH agent for authentication"
+  type        = bool
+  default     = true
+}
+
+variable "primary_dns_server" {
+  description = "Primary DNS server IP address"
+  type        = string
+  default     = "192.168.1.230"
+}

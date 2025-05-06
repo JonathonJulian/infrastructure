@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "proxmox-csi.fullname" . }}-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proxmox-csi.labels" . | nindent 4 }}
+    app: {{ include "proxmox-csi.name" . }}-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "proxmox-csi.selectorLabels" . | nindent 6 }}
+      app: {{ include "proxmox-csi.name" . }}-controller
+  template:
+    metadata:
+      labels:
+        {{- include "proxmox-csi.selectorLabels" . | nindent 8 }}
+        app: {{ include "proxmox-csi.name" . }}-controller
+      {{- with .Values.csi.controller.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "proxmox-csi.fullname" . }}
+      containers:
+        - name: csi-controller
+          image: "{{ .Values.csi.image.repository }}:{{ .Values.csi.image.tag }}"
+          imagePullPolicy: {{ .Values.csi.image.pullPolicy }}
+          args:
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--proxmox-config-file=/etc/proxmox/config.yaml"
+            - "--metrics-address=:{{ .Values.csi.metrics.port }}"
+            - "--v=5"
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///var/lib/csi/sockets/pluginproxy/csi.sock
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+            - name: proxmox-config
+              mountPath: /etc/proxmox/
+            - name: vault-proxmox-secrets
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: socket-dir
+          emptyDir: {}
+        - name: proxmox-config
+          configMap:
+            name: {{ include "proxmox-csi.fullname" . }}-config
+        - name: vault-proxmox-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: proxmox-vault-secrets

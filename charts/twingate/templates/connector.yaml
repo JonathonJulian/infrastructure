@@ -1,0 +1,11 @@
+{{- range .Values.connectors }}
+apiVersion: twingate.com/v1beta
+kind: TwingateConnector
+metadata:
+  name: {{ .name }}
+  namespace: {{ .namespace | default "default" }}
+spec:
+  imagePolicy:
+    provider: {{ .imagePolicy.provider | quote }}
+    schedule: {{ .imagePolicy.schedule | quote }}
+{{- end }}

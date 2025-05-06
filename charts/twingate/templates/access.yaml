@@ -1,0 +1,14 @@
+{{- range .Values.access }}
+apiVersion: twingate.com/v1beta
+kind: TwingateResourceAccess
+metadata:
+  name: {{ .name }}
+  namespace: {{ .namespace | default "default" }}
+spec:
+  resourceRef:
+    name: {{ .spec.resourceRef.name }}
+    namespace: {{ .spec.resourceRef.namespace | default "default" }}
+  principalExternalRef:
+    type: {{ .spec.principalExternalRef.type | quote }}
+    name: {{ .spec.principalExternalRef.name | quote }}
+{{- end }}

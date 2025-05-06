@@ -1,0 +1,52 @@
+# External Vault server configuration
+injector:
+  enabled: true
+  externalVaultAddr: "https://vault.lab.local:8200"
+  # Use Vault agent for automatic token renewal
+  agentImage:
+    repository: "hashicorp/vault"
+    tag: "1.15.6"
+
+  # Annotations for Vault Agent injector
+  annotations:
+    "vault.hashicorp.com/tls-skip-verify": "true"
+
+server:
+  enabled: false  # We're using external Vault
+
+csi:
+  enabled: true
+  debug: true
+  # Override provider configuration with correct parameters
+  extraArgs: []
+  # Remove the default args that are causing problems
+  daemonSet:
+    annotations: {}
+    securityContext:
+      pod: {}
+      container: {}
+
+  # Remove log-level flag from the initContainer args
+  agent:
+    enabled: true
+    extraArgs: []
+
+  # Define container args that override the default args
+  args:
+    - "--endpoint=/provider/vault.sock"
+    - "--hmac-secret-name=vault-csi-provider-hmac-key"
+    - "-debug"
+
+  # Add environment variables for Vault address
+  env:
+    - name: "VAULT_ADDR"
+      value: "https://vault.lab.local:8200"
+    - name: "VAULT_SKIP_VERIFY"
+      value: "true"
+  image:
+    repository: "hashicorp/vault-csi-provider"
+    tag: "1.4.0"
+
+# Define default configurations for annotations
+defaultVaultRoleAnnotation: "kubernetes-auth"
+defaultVaultNamespaceAnnotation: "kubernetes"

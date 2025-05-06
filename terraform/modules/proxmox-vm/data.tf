@@ -27,6 +27,7 @@ locals {
     "runner"  = 500
     "minio"   = 600
     "dns"     = 700
+    "haproxy" = 800
     "default" = 900
   }
 

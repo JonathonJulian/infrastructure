@@ -1,0 +1,27 @@
+# Twingate resources Helm values
+
+connectors:
+  - name: minio-connector
+    namespace: twingate-system
+    imagePolicy:
+      provider: dockerhub
+      schedule: "0 0 * * *"
+
+resources:
+  - name: minio-resource
+    namespace: twingate-system
+    spec:
+      name: "MinIO Object Storage"
+      address: "minio.default.svc.cluster.local"
+      alias: "minio.local"
+
+access:
+  - name: minio-access
+    namespace: twingate-system
+    spec:
+      resourceRef:
+        name: minio-resource
+        namespace: twingate-system
+      principalExternalRef:
+        type: group
+        name: "Administrators"

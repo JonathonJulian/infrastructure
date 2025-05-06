@@ -1,0 +1,5 @@
+apiVersion: v2
+name: twingate-minio-resources
+description: Helm chart to deploy TwingateConnector, TwingateResource, and TwingateResourceAccess for MinIO
+version: 0.1.0
+appVersion: "1.0.0"
