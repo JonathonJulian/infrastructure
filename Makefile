@@ -51,20 +51,12 @@ help: ## Show this help message
 
 .DEFAULT_GOAL := help
 
-#############################
-# Setup Commands
-#############################
-
-setup-ansible: ## Setup Ansible configuration from Terraform output
-	$(INFO)Extracting Terraform outputs for Ansible configuration...${NC}
-	@cd $(TERRAFORM_DIR) && terraform output -json > ../../$(ANSIBLE_DIR)/tf_output.json
-	$(SUCCESS)Ansible configuration updated!${NC}
 
 #############################
 # Deployment Commands
 #############################
 
-deploy-k8s: setup-ansible ## Deploy Kubernetes cluster using Terraform and Ansible
+deploy-k8s: ## Deploy Kubernetes cluster using Terraform and Ansible
 	$(INFO)Starting full infrastructure deployment...${NC}
 	@cd $(TERRAFORM_DIR) && terraform init && \
 		terraform apply -var="proxmox_token=$(PROXMOX_TOKEN)" -auto-approve || \
